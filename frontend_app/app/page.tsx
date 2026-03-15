@@ -1,65 +1,97 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import { useEffect, useState } from 'react';
+import dynamic from 'next/dynamic';
+import apiClient from '../lib/axios';
+import LandCard from '../components/LandCard';
+import 'leaflet/dist/leaflet.css';
+import L from 'leaflet';
+
+// Fix leaflet's default icon paths when bundlers can't resolve images
+delete (L.Icon.Default.prototype as any)._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+});
+
+const MapContainer = dynamic(() => import('react-leaflet').then((m) => m.MapContainer), { ssr: false });
+const TileLayer = dynamic(() => import('react-leaflet').then((m) => m.TileLayer), { ssr: false });
+const Marker = dynamic(() => import('react-leaflet').then((m) => m.Marker), { ssr: false });
+const Popup = dynamic(() => import('react-leaflet').then((m) => m.Popup), { ssr: false });
+
+interface LandSummary {
+  id: number | string;
+  title: string;
+  price?: number | null;
+  thumbnail_url?: string | null;
+  lat?: number | null;
+  lng?: number | null;
+}
+
+export default function HomePage() {
+  const [lands, setLands] = useState<LandSummary[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    async function load() {
+      setLoading(true);
+      try {
+        const res = await apiClient.get('/api/search');
+        // expect an array or a paginated response; try several shapes
+        const data = res.data?.data ?? res.data ?? [];
+        // if paginated, data could be object with data property
+        const list = Array.isArray(data) ? data : data.data ?? [];
+        setLands(list);
+      } catch (e) {
+        console.error('Failed to load lands', e);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    load();
+  }, []);
+
+  // center map based on first land or fallback
+  const center: [number, number] = lands.length && lands[0].lat && lands[0].lng ? [lands[0].lat as number, lands[0].lng as number] : [35.681236, 139.767125];
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left column: list */}
+        <div className="lg:col-span-1">
+          <h2 className="text-lg font-semibold mb-4">スペース一覧</h2>
+          {loading && <div>読み込み中...</div>}
+          <div className="space-y-3">
+            {lands.map((land) => (
+              <LandCard key={land.id} land={land} />
+            ))}
+            {!loading && lands.length === 0 && <div className="text-sm text-gray-500">該当するスペースが見つかりません</div>}
+          </div>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+
+        {/* Right column: map spanning 2 cols on large */}
+        <div className="lg:col-span-2">
+          <div className="w-full h-[70vh] rounded shadow overflow-hidden">
+            <MapContainer center={center} zoom={13} style={{ height: '100%', width: '100%' }}>
+              <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="&copy; OpenStreetMap contributors" />
+              {lands.map((land) => (
+                land.lat && land.lng ? (
+                  <Marker key={land.id} position={[land.lat as number, land.lng as number]}>
+                    <Popup>
+                      <div className="text-sm">
+                        <strong>{land.title}</strong>
+                        <div>{land.price ? `¥${land.price}` : '価格情報なし'}</div>
+                      </div>
+                    </Popup>
+                  </Marker>
+                ) : null
+              ))}
+            </MapContainer>
+          </div>
         </div>
-      </main>
+      </div>
     </div>
   );
 }

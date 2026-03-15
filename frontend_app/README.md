@@ -1,36 +1,70 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# frontend (Next.js + TypeScript + Tailwind) — starter notes
 
-## Getting Started
+This directory contains starter helper files for a Next.js (App Router) + TypeScript + Tailwind CSS project that will talk to a Laravel API using Sanctum (cookie-based SPA auth).
 
-First, run the development server:
+## Quick setup commands
+
+Run these in a parent folder where you want to create the `frontend` app.
+
+1) Create the Next.js app (App Router + TypeScript + Tailwind):
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npx create-next-app@latest frontend --typescript --app --tailwind
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2) Enter the project and install `axios`:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+cd frontend
+npm install axios
+# or: pnpm add axios
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+3) Create a `.env.local` (copy from `.env.local.example`) and set `NEXT_PUBLIC_API_URL` to your Laravel backend origin (e.g. `http://localhost:8000`).
 
-## Learn More
+## Provided helper
 
-To learn more about Next.js, take a look at the following resources:
+- `lib/axios.ts` — an axios instance configured for Laravel Sanctum:
+  - uses `withCredentials: true` so cookies are sent and received
+  - uses `process.env.NEXT_PUBLIC_API_URL` as `baseURL`
+  - exports `getCsrfCookie()` to call `/sanctum/csrf-cookie`
+  - exports `withCsrf(fn)` helper that calls `getCsrfCookie()` then runs `fn`
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Example usage:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```ts
+// pages or app route client-side code
+import apiClient, { withCsrf } from '../lib/axios';
 
-## Deploy on Vercel
+async function login(email: string, password: string) {
+  return withCsrf(() => apiClient.post('/login', { email, password }));
+}
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+// For authenticated requests after login, use apiClient directly:
+// apiClient.get('/api/user')
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Notes:
+- Laravel Sanctum SPA flow expects the browser to call `GET /sanctum/csrf-cookie` first to set the XSRF-TOKEN cookie, then perform POST/PUT/DELETE requests where Laravel will validate the X-XSRF-TOKEN header automatically (axios reads cookie and sets header).
+- Ensure your backend CORS and cookie settings allow the frontend origin and send cookies (Access-Control-Allow-Credentials, correct SameSite settings, etc.).
+
+## Recommended initial directory structure
+
+This structure is oriented to a C2C map app and can be extended as you go:
+
+- `app/` — Next.js App Router pages and layout
+- `components/` — presentational and shared components (Map, Marker, Button, Modal, etc.)
+- `lib/` — low-level libraries and clients (e.g. `lib/axios.ts`, map helpers)
+- `hooks/` — custom React hooks (useAuth, useMap, useSWR wrappers)
+- `types/` — TypeScript domain types (User, Listing, Location, API responses)
+- `services/` or `api/` — higher-level API wrappers that call `lib/axios`
+- `utils/` — small utility functions
+- `styles/` — global Tailwind config/css if any
+- `public/` — static assets
+
+## Next steps / checklist
+
+- Run the create-next-app command above.
+- Install `axios`.
+- Copy `.env.local.example` → `.env.local` and set `NEXT_PUBLIC_API_URL`.
+- Start building `services/auth.ts` that wraps `lib/axios` for login/logout/register and a `useAuth` hook in `hooks/`.
