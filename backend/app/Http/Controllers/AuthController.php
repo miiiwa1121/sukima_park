@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Resources\MemberResource;
 use App\Models\Member;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -86,17 +87,16 @@ class AuthController extends Controller
         // ============================================================
         // Hash::check(入力値, ハッシュ値) → 一致すればtrue
         // パスワードはHash::makeで保存されているため、同じ方法で照合
-        if ($member && Hash::check($request->password, $member->PASSWORD)) {
+    if ($member && Hash::check($request->password, $member->PASSWORD)) {
             
             // ============================================================
             // 4. アカウントステータスのチェック
             // ============================================================
             // ACCOUNT_STATUS = 1 → 凍結されたアカウント
             if ($member->ACCOUNT_STATUS == 1) {
-                // エラーメッセージを表示して前の画面に戻る
-                return back()->withErrors([
-                    'email' => 'このアカウントは凍結されています。',
-                ]);
+                return response()->json([
+                    'message' => 'このアカウントは凍結されています。',
+                ], 403);
             }
 
             // ============================================================
@@ -121,15 +121,10 @@ class AuthController extends Controller
             // 7. リダイレクト（ユーザー種別で分岐）
             // ============================================================
             // ACCOUNT_STATUS == 2 は管理者
-            if ($member->ACCOUNT_STATUS == 2) {
-                // 管理者はユーザー一覧画面へ
-                return redirect()->intended('/admin/users');
-            }
-            
-            // 一般ユーザーはホーム画面へ
-            // intended()は、ログイン前にアクセスしようとしていたURLに
-            // リダイレクトする（なければ引数のURLへ）
-            return redirect()->intended('/');
+            return response()->json([
+                'message' => 'ログインしました。',
+                'user' => new MemberResource($member),
+            ]);
         }
 
         // ============================================================
@@ -137,9 +132,9 @@ class AuthController extends Controller
         // ============================================================
         // withErrors: エラーメッセージをセッションに保存
         // onlyInput: 指定したフィールドの入力値だけを保持（パスワードは除外）
-        return back()->withErrors([
-            'email' => 'メールアドレスまたはパスワードが正しくありません。',
-        ])->onlyInput('email');
+        return response()->json([
+            'message' => 'メールアドレスまたはパスワードが正しくありません。',
+        ], 422);
     }
 
     /**
@@ -257,7 +252,10 @@ class AuthController extends Controller
         // ホーム画面にリダイレクト
         // ============================================================
         // with('success', 'メッセージ') でフラッシュメッセージを設定
-        return redirect('/')->with('success', '会員登録が完了しました！');
+        return response()->json([
+            'message' => '会員登録が完了しました。',
+            'user' => new MemberResource($member),
+        ], 201);
     }
 
     /**
@@ -360,6 +358,8 @@ class AuthController extends Controller
         // ============================================================
         // 4. ホーム画面にリダイレクト
         // ============================================================
-        return redirect('/')->with('success', 'ログアウトしました。');
+        return response()->json([
+            'message' => 'ログアウトしました。',
+        ]);
     }
 }

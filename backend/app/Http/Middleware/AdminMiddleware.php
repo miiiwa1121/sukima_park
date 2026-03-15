@@ -35,7 +35,7 @@ class AdminMiddleware
             return $next($request);
         }
         
-        // 管理者でない場合はホームへリダイレクト
-        return redirect('/')->with('error', 'このページへのアクセス権限がありません。');
+        // 管理者でない場合は403を返す
+        return abort(403, 'このページへのアクセス権限がありません。');
     }
 }
