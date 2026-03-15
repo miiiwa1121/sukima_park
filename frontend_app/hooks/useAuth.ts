@@ -18,8 +18,8 @@ export default function useAuth() {
       setLoading(true);
       setError(null);
       // try common user endpoints; adjust if your backend exposes a different route
-      const res = await apiClient.get('/api/user');
-      setUser(res.data?.data ?? res.data ?? null);
+  const res = await apiClient.get('/api/me');
+  setUser(res.data?.user ?? res.data?.data ?? res.data ?? null);
       return res.data;
     } catch (err: any) {
       // keep user as null on failure
@@ -38,7 +38,7 @@ export default function useAuth() {
       return await withCsrf(async () => {
         const res = await apiClient.post('/login', payload);
         // backend may return user in various shapes; try to normalize
-        const data = res.data?.data ?? res.data ?? null;
+  const data = res.data?.user ?? res.data?.data ?? res.data ?? null;
         setUser(data);
         return res;
       });
@@ -56,7 +56,7 @@ export default function useAuth() {
     try {
       return await withCsrf(async () => {
         const res = await apiClient.post('/register', payload);
-        const data = res.data?.data ?? res.data ?? null;
+  const data = res.data?.user ?? res.data?.data ?? res.data ?? null;
         setUser(data);
         return res;
       });
